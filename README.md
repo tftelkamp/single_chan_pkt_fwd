@@ -4,7 +4,7 @@ This repository contains a proof-of-concept implementation of a single
 channel LoRaWAN gateway.
 
 It has been tested on the Raspberry Pi platform, using a Semtech SX1272
-transceiver (HopeRF RFM92W).
+transceiver (HopeRF RFM92W), and SX1276 (HopeRF RFM95W).
 
 The code is for testing and development purposes only, and is not meant 
 for production usage. 
@@ -23,7 +23,6 @@ Features
 
 Not (yet) supported:
 - PACKET_PUSH_ACK processing
-- SX1276
 - SF7BW250 modulation
 - FSK modulation
 - downstream messages (tx)
@@ -48,7 +47,7 @@ MOSI   - MOSI (pin #19)
 SCK    - CLK (pin #23)
 NSS    - GPIO6 (pin #22)
 DIO0   - GPIO7 (pin #7)
-RST    - GPIO0 (in #11)
+RST    - GPIO0 (pin #11)
 
 Configuration
 -------------

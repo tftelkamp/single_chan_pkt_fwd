@@ -40,6 +40,8 @@ byte currentMode = 0x81;
 char message[256];
 char b64[256];
 
+bool sx1272 = true;
+
 byte receivedbytes;
 
 struct sockaddr_in si_other;
@@ -77,9 +79,9 @@ float lon=0.0;
 int   alt=0;
 
 /* Informal status fields */
-static char platform[24]    = "SX1272";  				/* platform definition */
-static char email[40]       = "";        /* used for contact email */
-static char description[64] = "";        /* used for free form description */
+static char platform[24]    = "Single Channel Gateway";  /* platform definition */
+static char email[40]       = "";                        /* used for contact email */
+static char description[64] = "";                        /* used for free form description */
 
 // define servers
 // TODO: use host names and dns
@@ -102,6 +104,7 @@ static char description[64] = "";        /* used for free form description */
 #define REG_DIO_MAPPING_2           0x41
 #define REG_MODEM_CONFIG            0x1D
 #define REG_MODEM_CONFIG2           0x1E
+#define REG_MODEM_CONFIG3           0x26
 #define REG_SYMB_TIMEOUT_LSB  		0x1F
 #define REG_PKT_SNR_VALUE			0x19
 #define REG_PAYLOAD_LENGTH          0x22
@@ -237,18 +240,34 @@ boolean receivePkt(char *payload)
 
 void SetupLoRa()
 {
+    
+    digitalWrite(RST, HIGH);
+    delay(100);
+    digitalWrite(RST, LOW);
+    delay(100);
 
     byte version = readRegister(REG_VERSION);
-    if (version == 0x12) {
-        // sx1276
-        printf("SX1276 transceiver not yet supported.\n");
-        exit(1);
-    } else if (version == 0x22) {
+
+    if (version == 0x22) {
         // sx1272
         printf("SX1272 detected, starting.\n");
+        sx1272 = true;
     } else {
-        printf("Unrecognized transceiver.\n");
-        exit(1);
+        // sx1276?
+        digitalWrite(RST, LOW);
+        delay(100);
+        digitalWrite(RST, HIGH);
+        delay(100);
+        version = readRegister(REG_VERSION);
+        if (version == 0x12) {
+            // sx1276
+            printf("SX1276 detected, starting.\n");
+            sx1272 = false;
+        } else {
+            printf("Unrecognized transceiver.\n");
+            //printf("Version: 0x%x\n",version);
+            exit(1);
+        }
     }
 
     writeRegister(REG_OPMODE, SX72_MODE_SLEEP);
@@ -261,12 +280,22 @@ void SetupLoRa()
 
     writeRegister(REG_SYNC_WORD, 0x34); // LoRaWAN public sync word
 
-    if (sf == SF11 || sf == SF12) {
-        writeRegister(REG_MODEM_CONFIG,0x0B);
+    if (sx1272) {
+        if (sf == SF11 || sf == SF12) {
+            writeRegister(REG_MODEM_CONFIG,0x0B);
+        } else {
+            writeRegister(REG_MODEM_CONFIG,0x0A);
+        }
+        writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
     } else {
-        writeRegister(REG_MODEM_CONFIG,0x0A);
+        if (sf == SF11 || sf == SF12) {
+            writeRegister(REG_MODEM_CONFIG3,0x0C);
+        } else {
+            writeRegister(REG_MODEM_CONFIG3,0x04);
+        }
+        writeRegister(REG_MODEM_CONFIG,0x072);
+        writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
     }
-    writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
 
     if (sf == SF10 || sf == SF11 || sf == SF12) {
         writeRegister(REG_SYMB_TIMEOUT_LSB,0x05);
@@ -350,6 +379,7 @@ void sendstat() {
 void receivepacket() {
 
     long int SNR;
+    int rssicorr;
 
     if(digitalRead(dio0) == 1)
     {
@@ -366,8 +396,15 @@ void receivepacket() {
                 // Divide by 4
                 SNR = ( value & 0xFF ) >> 2;
             }
-            printf("Packet RSSI: %d, ",readRegister(0x1A)-139);
-            printf("RSSI: %d, ",readRegister(0x1B)-139);
+            
+            if (sx1272) {
+                rssicorr = 139;
+            } else {
+                rssicorr = 157;
+            }
+
+            printf("Packet RSSI: %d, ",readRegister(0x1A)-rssicorr);
+            printf("RSSI: %d, ",readRegister(0x1B)-rssicorr);
             printf("SNR: %li, ",SNR);
             printf("Length: %i",(int)receivedbytes);
             printf("\n");
@@ -463,7 +500,7 @@ void receivepacket() {
             buff_index += 13;
             j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"lsnr\":%li", SNR);
             buff_index += j;
-            j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"rssi\":%d,\"size\":%u", readRegister(0x1A)-139, receivedbytes);
+            j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"rssi\":%d,\"size\":%u", readRegister(0x1A)-rssicorr, receivedbytes);
             buff_index += j;
             memcpy((void *)(buff_up + buff_index), (void *)",\"data\":\"", 9);
             buff_index += 9;
@@ -504,12 +541,7 @@ int main () {
     pinMode(dio0, INPUT);
     pinMode(RST, OUTPUT);
 
-    digitalWrite(RST, HIGH);
-    delay(100);
-    digitalWrite(RST, LOW);
-    delay(200);
-
-    //int fd = ;
+    //int fd = 
     wiringPiSPISetup(CHANNEL, 500000);
     //cout << "Init result: " << fd << endl;
 
