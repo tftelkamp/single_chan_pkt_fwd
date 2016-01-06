@@ -85,7 +85,7 @@ static char description[64] = "";                        /* used for free form d
 
 // define servers
 // TODO: use host names and dns
-#define SERVER1 "54.229.214.112"    // The Things Network: croft.thethings.girovito.nl
+#define SERVER1 "54.72.145.119"    // The Things Network: croft.thethings.girovito.nl
 //#define SERVER2 "192.168.1.10"      // local
 #define PORT 1700                   // The port on which to send data
 
@@ -293,7 +293,7 @@ void SetupLoRa()
         } else {
             writeRegister(REG_MODEM_CONFIG3,0x04);
         }
-        writeRegister(REG_MODEM_CONFIG,0x072);
+        writeRegister(REG_MODEM_CONFIG,0x72);
         writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
     }
 
