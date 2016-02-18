@@ -75,14 +75,14 @@ sf_t sf = SF7;
 uint32_t  freq = 868100000; // in Mhz! (868.1)
 
 // Set location
-float lat=0.0;
-float lon=0.0;
-int   alt=0;
+float lat=51.572101;
+float lon=4.797998;
+int   alt=2;
 
 /* Informal status fields */
 static char platform[24]    = "Single Channel Gateway";  /* platform definition */
-static char email[40]       = "";                        /* used for contact email */
-static char description[64] = "";                        /* used for free form description */
+static char email[40]       = "ivo.knutsel@gmail.com";                        /* used for contact email */
+static char description[64] = "Test of Pi and NiceRF module.";                        /* used for free form description */
 
 // define servers
 // TODO: use host names and dns
