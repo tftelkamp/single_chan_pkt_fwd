@@ -23,6 +23,21 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 
+#include <errno.h>
+
+#ifdef DAEMON
+// Daemon support
+#include <sys/stat.h>
+#include <unistd.h>
+#include <syslog.h>
+
+#define LOG(...) do { syslog(LOG_INFO, __VA_ARGS__); } while (0)
+#define LOG_E(...) do { syslog(LOG_ERR, __VA_ARGS__); } while (0)
+#else
+#define LOG(...) do { printf(__VA_ARGS__); } while (0)
+#define LOG_E(...) do { printf(__VA_ARGS__); } while (0)
+#endif
+
 using namespace std;
 
 #include "base64.h"
@@ -164,7 +179,9 @@ static char description[64] = "";                        /* used for free form d
 
 void die(const char *s)
 {
-    perror(s);
+	LOG(__FUNCTION__);
+    LOG_E(s);
+	perror(s);
     exit(1);
 }
 
@@ -217,7 +234,7 @@ boolean receivePkt(char *payload)
     //  payload crc: 0x20
     if((irqflags & 0x20) == 0x20)
     {
-        printf("CRC error\n");
+        LOG("CRC error\n");
         writeRegister(REG_IRQ_FLAGS, 0x20);
         return false;
     } else {
@@ -250,7 +267,7 @@ void SetupLoRa()
 
     if (version == 0x22) {
         // sx1272
-        printf("SX1272 detected, starting.\n");
+        LOG("SX1272 detected, starting.\n");
         sx1272 = true;
     } else {
         // sx1276?
@@ -261,10 +278,10 @@ void SetupLoRa()
         version = readRegister(REG_VERSION);
         if (version == 0x12) {
             // sx1276
-            printf("SX1276 detected, starting.\n");
+            LOG("SX1276 detected, starting.\n");
             sx1272 = false;
         } else {
-            printf("Unrecognized transceiver.\n");
+            LOG("Unrecognized transceiver.\n");
             //printf("Version: 0x%x\n",version);
             exit(1);
         }
@@ -320,7 +337,8 @@ void sendudp(char *msg, int length) {
     inet_aton(SERVER1 , &si_other.sin_addr);
     if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
     {
-        die("sendto()");
+		LOG_E("Error sending UDP %d", errno);
+        // die("sendto()");
     }
 #endif
 
@@ -369,7 +387,7 @@ void sendstat() {
     stat_index += j;
     status_report[stat_index] = 0; /* add string terminator, for safety */
 
-    printf("stat update: %s\n", (char *)(status_report+12)); /* DEBUG: display JSON stat */
+    LOG("stat update: %s\n", (char *)(status_report+12)); /* DEBUG: display JSON stat */
 
     //send the update
     sendudp(status_report, stat_index);
@@ -403,11 +421,11 @@ void receivepacket() {
                 rssicorr = 157;
             }
 
-            printf("Packet RSSI: %d, ",readRegister(0x1A)-rssicorr);
-            printf("RSSI: %d, ",readRegister(0x1B)-rssicorr);
-            printf("SNR: %li, ",SNR);
-            printf("Length: %i",(int)receivedbytes);
-            printf("\n");
+            LOG("Packet RSSI: %d, ",readRegister(0x1A)-rssicorr);
+            LOG("RSSI: %d, ",readRegister(0x1B)-rssicorr);
+            LOG("SNR: %li, ",SNR);
+            LOG("Length: %i",(int)receivedbytes);
+            LOG("\n");
 
             int j;
             j = bin_to_b64((uint8_t *)message, receivedbytes, (char *)(b64), 341);
@@ -519,7 +537,7 @@ void receivepacket() {
             ++buff_index;
             buff_up[buff_index] = 0; /* add string terminator, for safety */
 
-            printf("rxpk update: %s\n", (char *)(buff_up + 12)); /* DEBUG: display JSON payload */
+            LOG("rxpk update: %s\n", (char *)(buff_up + 12)); /* DEBUG: display JSON payload */
 
             //send the messages
             sendudp(buff_up, buff_index);
@@ -532,6 +550,46 @@ void receivepacket() {
 }
 
 int main () {
+
+#ifdef DAEMON
+	//Adapted from http://www.netzmafia.de/skripten/unix/linux-daemon-howto.html
+	pid_t pid, sid;
+
+	openlog("SingleChanPktFwd", LOG_PID, LOG_USER);
+
+	pid = fork();
+	if (pid < 0) {
+		LOG("fork failed");
+		exit(EXIT_FAILURE);
+	}
+	/* If we got a good PID, then
+		 we can exit the parent process. */
+	if (pid > 0) {
+		LOG("Child spawned, pid %d\n", pid);
+		exit(EXIT_SUCCESS);
+	}
+
+	/* Change the file mode mask */
+	umask(0);
+
+	/* Create a new SID for the child process */
+	sid = setsid();
+	if (sid < 0) {
+		LOG("setsid failed");
+		exit(EXIT_FAILURE);
+	}
+        
+	/* Change the current working directory */
+	if ((chdir("/")) < 0) {
+	  LOG("chdir failed");
+	  exit(EXIT_FAILURE);
+	}
+        
+	/* Close out the standard file descriptors */
+	close(STDIN_FILENO);
+	close(STDOUT_FILENO);
+	close(STDERR_FILENO);
+#endif //DAEMON
 
     struct timeval nowtime;
     uint32_t lasttime;
@@ -560,7 +618,7 @@ int main () {
     ioctl(s, SIOCGIFHWADDR, &ifr);
 
     /* display result */
-    printf("Gateway ID: %.2x:%.2x:%.2x:ff:ff:%.2x:%.2x:%.2x\n",
+    LOG("Gateway ID: %.2x:%.2x:%.2x:ff:ff:%.2x:%.2x:%.2x\n",
            (unsigned char)ifr.ifr_hwaddr.sa_data[0],
            (unsigned char)ifr.ifr_hwaddr.sa_data[1],
            (unsigned char)ifr.ifr_hwaddr.sa_data[2],
@@ -568,8 +626,8 @@ int main () {
            (unsigned char)ifr.ifr_hwaddr.sa_data[4],
            (unsigned char)ifr.ifr_hwaddr.sa_data[5]);
 
-    printf("Listening at SF%i on %.6lf Mhz.\n", sf,(double)freq/1000000);
-    printf("------------------\n");
+    LOG("Listening at SF%i on %.6lf Mhz.\n", sf,(double)freq/1000000);
+    LOG("------------------\n");
 
     while(1) {
 
