@@ -103,8 +103,8 @@ static char email[40]       = "";                        /* used for contact ema
 // define servers
 #define SERVER1_NAME "router.eu.thethings.network" // The Things Network
 //#define SERVER1 "40.114.249.243"                 // ditto, by IP address
-#define PORT 1700
-//#define SERVER2 "192.168.1.10"      // local
+#define PORT 1700                                  // The port on which to send data
+//#define SERVER2 "192.168.1.10"                   // local
 
 // #############################################
 // #############################################
