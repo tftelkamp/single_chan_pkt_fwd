@@ -33,6 +33,9 @@ using namespace std;
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
 
+#include<netdb.h> //hostent
+#include<arpa/inet.h>
+
 typedef bool boolean;
 typedef unsigned char byte;
 
@@ -98,10 +101,10 @@ static char platform[24]    = "Single Channel Gateway";  /* platform definition 
 static char email[40]       = "";                        /* used for contact email */
 
 // define servers
-// TODO: use host names and dns
-#define SERVER1 "54.72.145.119"    // The Things Network: croft.thethings.girovito.nl
+#define SERVER1_NAME "router.eu.thethings.network" // The Things Network
+//#define SERVER1 "40.114.249.243"                 // ditto, by IP address
+#define PORT 1700
 //#define SERVER2 "192.168.1.10"      // local
-#define PORT 1700                   // The port on which to send data
 
 // #############################################
 // #############################################
@@ -372,10 +375,71 @@ void SetupLoRa()
 
 }
 
+int resolve_ip_address(const char * hostname , char* ip) {
+    struct hostent *he;
+    struct in_addr **addr_list;
+    int i;
+
+    if ( (he = gethostbyname( hostname ) ) == NULL) 
+    {
+        // get the host info
+        herror("gethostbyname");
+        return 1;
+    }
+ 
+    addr_list = (struct in_addr **) he->h_addr_list;
+
+    for(i = 0; addr_list[i] != NULL; i++) {
+        //Return the first one;
+        strcpy(ip , inet_ntoa(*addr_list[i]) );
+        return 0;
+    }
+
+    return 1;
+}
+
 void sendudp(char *msg, int length) {
 
-    std::map<std::string, std::pair<std::string, int> >::iterator iter;
-    for(iter = serverList.begin(); iter != serverList.end(); iter++)
+//send the update
+
+#ifdef SERVER1_NAME
+    if (strlen(SERVER1_NAME) >= 100)
+    {
+        die("server name is too long");
+    }
+    
+    char addr[100];
+
+    //resolve the hostname every time we want to send something
+    if (resolve_ip_address(SERVER1_NAME, addr) == 0)
+	{
+       printf("%s resolved to %s\n" , SERVER1_NAME, addr);
+
+       inet_aton(addr, &si_other.sin_addr);
+       if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
+       {
+           die("sendto()");
+       }
+
+    } 
+    else 
+    {
+        die("resolve hostname()");
+    }
+#endif
+
+
+#ifdef SERVER1
+    inet_aton(SERVER1 , &si_other.sin_addr);
+    if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
+    {
+        die("sendto()");
+    }
+#endif
+
+#ifdef SERVER2
+    inet_aton(SERVER2 , &si_other.sin_addr);
+    if (sendto(s, (char *)msg, length , 0 , (struct sockaddr *) &si_other, slen)==-1)
     {
 	si_other.sin_port = htons(iter->second.second);
 	inet_aton(iter->second.first.c_str(), &si_other.sin_addr);
@@ -384,6 +448,7 @@ void sendudp(char *msg, int length) {
 		die("sendto()");
 	}
    }
+#endif
 }
 
 void sendstat() {
