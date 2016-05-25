@@ -48,6 +48,9 @@ sudo apt-get install devscripts build-essential lintian
 debuild
 cd ..
 sudo dpkg -i lorawan-single-packet-gateway*.deb
+# Enable and start the service
+sudo systemctl enable lorawan-spgw
+sudo systemctl start lorawan-spgw
 ```
 
 NOTE: You will need a GPG key installed on the pi you are
