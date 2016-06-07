@@ -1,12 +1,12 @@
 /*******************************************************************************
- *
  * Copyright (c) 2015 Thomas Telkamp
  *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
  *
+ * Changes by Hans Boksem for creating a dual channel gateway with the Raspberry 
+ * Pi+ LoRa(TM)  * Expansion Board  * of Uputronics.
  *******************************************************************************/
 
 #include <string>
@@ -62,32 +62,48 @@ enum sf_t { SF7=7, SF8, SF9, SF10, SF11, SF12 };
  *
  *******************************************************************************/
 
-// SX1272 - Raspberry connections
-int ssPin = 6;
-int dio0  = 7;
+// SX1276 -  Uputronics Raspberry Pi+ LoRa(TM) Expansion Board connections
+// CE0
+int ssPin = 10;
+int dio0  = 6;
+// CE1
+int ssPin_2 = 11;
+int dio0_2  = 27;
+
 int RST   = 0;
+
+//LEDs
+int NetworkLED    = 22;
+int InternetLED   = 23;
+int ActivityLED_0 = 21;
+int ActivityLED_1 = 29;
 
 // Set spreading factor (SF7 - SF12)
 sf_t sf = SF7;
 
 // Set center frequency
 uint32_t  freq = 868100000; // in Mhz! (868.1)
+uint32_t  freq_2 = 868300000; // in Mhz! (868.3)
 
 // Set location
-float lat=0.0;
-float lon=0.0;
-int   alt=0;
+float lat=<your lat>;
+float lon=<your lon>;
+int   alt=<your alt>;
 
 /* Informal status fields */
-static char platform[24]    = "Single Channel Gateway";  /* platform definition */
-static char email[40]       = "";                        /* used for contact email */
-static char description[64] = "";                        /* used for free form description */
+static char platform[24]    = "<your definition>";  /* platform definition */
+static char email[40]       = "<your email>";                        /* used for contact email */
+static char description[64] = "<your description";                        /* used for free form description */
 
 // define servers
 // TODO: use host names and dns
-#define SERVER1 "54.72.145.119"    // The Things Network: croft.thethings.girovito.nl
+#define SERVER1 "40.114.249.243"    // The Things Network: router.eu.thethings.network
+//#define SERVER2 "54.72.145.119"    // The Things Network: croft.thethings.girovito.nl
 //#define SERVER2 "192.168.1.10"      // local
 #define PORT 1700                   // The port on which to send data
+
+//define logfile
+#define logfile "/var/log/lora_gateway"
 
 // #############################################
 // #############################################
@@ -162,155 +178,183 @@ static char description[64] = "";                        /* used for free form d
 #define TX_BUFF_SIZE  2048
 #define STATUS_SIZE	  1024
 
+void writelog(const char *logtext)
+{
+    FILE *logfileID;
+    // Open logfile for write append
+    logfileID = fopen(logfile,"a");
+    fprintf(logfileID, logtext);
+    fclose(logfileID);
+}
+
 void die(const char *s)
 {
     perror(s);
     exit(1);
 }
 
-void selectreceiver()
+void selectreceiver(byte CE)
 {
-    digitalWrite(ssPin, LOW);
+   if (CE == 0)
+   {
+     digitalWrite(ssPin, LOW);
+   } else {
+     digitalWrite(ssPin_2, LOW);
+   }
 }
 
-void unselectreceiver()
+void unselectreceiver(byte CE)
 {
-    digitalWrite(ssPin, HIGH);
+    if (CE == 0)
+    {
+      digitalWrite(ssPin, HIGH);
+    } else {
+      digitalWrite(ssPin_2, HIGH);
+    }
 }
 
-byte readRegister(byte addr)
+byte readRegister(byte addr, byte CE)
 {
     unsigned char spibuf[2];
 
-    selectreceiver();
+    selectreceiver(CE);
     spibuf[0] = addr & 0x7F;
     spibuf[1] = 0x00;
-    wiringPiSPIDataRW(CHANNEL, spibuf, 2);
-    unselectreceiver();
+    wiringPiSPIDataRW(CE, spibuf, 2);
+    unselectreceiver(CE);
 
     return spibuf[1];
 }
 
-void writeRegister(byte addr, byte value)
+void writeRegister(byte addr, byte value, byte CE)
 {
     unsigned char spibuf[2];
 
+    selectreceiver(CE);
     spibuf[0] = addr | 0x80;
     spibuf[1] = value;
-    selectreceiver();
-    wiringPiSPIDataRW(CHANNEL, spibuf, 2);
+    wiringPiSPIDataRW(CE, spibuf, 2);
 
-    unselectreceiver();
+    unselectreceiver(CE);
 }
 
 
-boolean receivePkt(char *payload)
+boolean receivePkt(char *payload, byte CE)
 {
 
     // clear rxDone
-    writeRegister(REG_IRQ_FLAGS, 0x40);
+    writeRegister(REG_IRQ_FLAGS, 0x40, CE);
 
-    int irqflags = readRegister(REG_IRQ_FLAGS);
+    int irqflags = readRegister(REG_IRQ_FLAGS, CE);
 
     cp_nb_rx_rcv++;
 
     //  payload crc: 0x20
     if((irqflags & 0x20) == 0x20)
     {
-        printf("CRC error\n");
-        writeRegister(REG_IRQ_FLAGS, 0x20);
+        writelog("CRC error\n");
+        writeRegister(REG_IRQ_FLAGS, 0x20, CE);
         return false;
     } else {
 
         cp_nb_rx_ok++;
 
-        byte currentAddr = readRegister(REG_FIFO_RX_CURRENT_ADDR);
-        byte receivedCount = readRegister(REG_RX_NB_BYTES);
+        byte currentAddr = readRegister(REG_FIFO_RX_CURRENT_ADDR, CE);
+        byte receivedCount = readRegister(REG_RX_NB_BYTES, CE);
         receivedbytes = receivedCount;
 
-        writeRegister(REG_FIFO_ADDR_PTR, currentAddr);
+        writeRegister(REG_FIFO_ADDR_PTR, currentAddr, CE);
 
         for(int i = 0; i < receivedCount; i++)
         {
-            payload[i] = (char)readRegister(REG_FIFO);
+            payload[i] = (char)readRegister(REG_FIFO, CE);
         }
     }
     return true;
 }
 
-void SetupLoRa()
+void SetupLoRa(byte CE)
 {
-    
-    digitalWrite(RST, HIGH);
-    delay(100);
-    digitalWrite(RST, LOW);
-    delay(100);
-
-    byte version = readRegister(REG_VERSION);
+    byte version = readRegister(REG_VERSION, CE);
 
     if (version == 0x22) {
         // sx1272
-        printf("SX1272 detected, starting.\n");
+        writelog("SX1272 detected, starting.\n");
         sx1272 = true;
-    } else {
+        } else if (version == 0x12) {
         // sx1276?
-        digitalWrite(RST, LOW);
-        delay(100);
-        digitalWrite(RST, HIGH);
-        delay(100);
-        version = readRegister(REG_VERSION);
-        if (version == 0x12) {
             // sx1276
-            printf("SX1276 detected, starting.\n");
+	    if (CE == 0)
+	    {
+               writelog("SX1276 detected on CE0, starting.\n");
+            } else {
+               writelog("SX1276 detected on CE1, starting.\n");
+            }
             sx1272 = false;
         } else {
-            printf("Unrecognized transceiver.\n");
+            writelog("Unrecognized transceiver.\n");
             //printf("Version: 0x%x\n",version);
             exit(1);
         }
-    }
 
-    writeRegister(REG_OPMODE, SX72_MODE_SLEEP);
+
+    writeRegister(REG_OPMODE, SX72_MODE_SLEEP, CE);
 
     // set frequency
-    uint64_t frf = ((uint64_t)freq << 19) / 32000000;
-    writeRegister(REG_FRF_MSB, (uint8_t)(frf>>16) );
-    writeRegister(REG_FRF_MID, (uint8_t)(frf>> 8) );
-    writeRegister(REG_FRF_LSB, (uint8_t)(frf>> 0) );
+    uint64_t frf;
+    if (CE == 0)
+    {
+      frf = ((uint64_t)freq << 19) / 32000000;
+    } else {
+      frf = ((uint64_t)freq_2 << 19) / 32000000;
+    }
 
-    writeRegister(REG_SYNC_WORD, 0x34); // LoRaWAN public sync word
+    writeRegister(REG_FRF_MSB, (uint8_t)(frf>>16) , CE);
+    writeRegister(REG_FRF_MID, (uint8_t)(frf>> 8) , CE);
+    writeRegister(REG_FRF_LSB, (uint8_t)(frf>> 0) , CE);
+
+    writeRegister(REG_SYNC_WORD, 0x34, CE); // LoRaWAN public sync word
+    //printf("written MSB: %f\n", (double)(frf>>16));
+    //printf("written MID: %f\n", (double)(frf>>8));
+    //printf("written LSB: %f\n", (double)(frf>>0));
 
     if (sx1272) {
         if (sf == SF11 || sf == SF12) {
-            writeRegister(REG_MODEM_CONFIG,0x0B);
+            writeRegister(REG_MODEM_CONFIG,0x0B, CE);
         } else {
-            writeRegister(REG_MODEM_CONFIG,0x0A);
+            writeRegister(REG_MODEM_CONFIG,0x0A, CE);
         }
-        writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
+        writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04, CE);
     } else {
         if (sf == SF11 || sf == SF12) {
-            writeRegister(REG_MODEM_CONFIG3,0x0C);
+            writeRegister(REG_MODEM_CONFIG3,0x0C, CE);
         } else {
-            writeRegister(REG_MODEM_CONFIG3,0x04);
+            writeRegister(REG_MODEM_CONFIG3,0x04, CE);
         }
-        writeRegister(REG_MODEM_CONFIG,0x72);
-        writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04);
+        writeRegister(REG_MODEM_CONFIG,0x72, CE);
+        writeRegister(REG_MODEM_CONFIG2,(sf<<4) | 0x04, CE);
     }
 
     if (sf == SF10 || sf == SF11 || sf == SF12) {
-        writeRegister(REG_SYMB_TIMEOUT_LSB,0x05);
+        writeRegister(REG_SYMB_TIMEOUT_LSB,0x05, CE);
     } else {
-        writeRegister(REG_SYMB_TIMEOUT_LSB,0x08);
+        writeRegister(REG_SYMB_TIMEOUT_LSB,0x08, CE);
     }
-    writeRegister(REG_MAX_PAYLOAD_LENGTH,0x80);
-    writeRegister(REG_PAYLOAD_LENGTH,PAYLOAD_LENGTH);
-    writeRegister(REG_HOP_PERIOD,0xFF);
-    writeRegister(REG_FIFO_ADDR_PTR, readRegister(REG_FIFO_RX_BASE_AD));
+    writeRegister(REG_MAX_PAYLOAD_LENGTH,0x80, CE);
+    writeRegister(REG_PAYLOAD_LENGTH,PAYLOAD_LENGTH, CE);
+    writeRegister(REG_HOP_PERIOD,0xFF, CE);
+    writeRegister(REG_FIFO_ADDR_PTR, readRegister(REG_FIFO_RX_BASE_AD, CE), CE);
 
     // Set Continous Receive Mode
-    writeRegister(REG_LNA, LNA_MAX_GAIN);  // max lna gain
-    writeRegister(REG_OPMODE, SX72_MODE_RX_CONTINUOS);
+    writeRegister(REG_LNA, LNA_MAX_GAIN, CE);  // max lna gain
+    writeRegister(REG_OPMODE, SX72_MODE_RX_CONTINUOS, CE);
 
+    //byte test = readRegister(REG_FRF_MSB, CE);
+    //printf("Register read: %i\n", test);
+    //test = readRegister(REG_FRF_MID, CE);
+    //printf("Register read: %i\n", test);
+    //test = readRegister(REG_FRF_LSB, CE);
+    //printf("Register read: %i\n", test);
 }
 
 void sendudp(char *msg, int length) {
@@ -318,8 +362,10 @@ void sendudp(char *msg, int length) {
 //send the update
 #ifdef SERVER1
     inet_aton(SERVER1 , &si_other.sin_addr);
+
     if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
     {
+        writelog("DIE: Could not send update...\n");
         die("sendto()");
     }
 #endif
@@ -331,6 +377,7 @@ void sendudp(char *msg, int length) {
         die("sendto()");
     }
 #endif
+
 }
 
 void sendstat() {
@@ -338,9 +385,11 @@ void sendstat() {
     static char status_report[STATUS_SIZE]; /* status report as a JSON object */
     char stat_timestamp[24];
     time_t t;
+    char str[400];
 
     int stat_index=0;
 
+    digitalWrite(InternetLED, HIGH);
     /* pre-fill the data buffer with fixed fields */
     status_report[0] = PROTOCOL_VERSION;
     status_report[3] = PKT_PUSH_DATA;
@@ -369,22 +418,39 @@ void sendstat() {
     stat_index += j;
     status_report[stat_index] = 0; /* add string terminator, for safety */
 
-    printf("stat update: %s\n", (char *)(status_report+12)); /* DEBUG: display JSON stat */
 
     //send the update
     sendudp(status_report, stat_index);
+    digitalWrite(InternetLED, LOW);
 
+    sprintf(str, "stat update: %s\n", (char *)(status_report+12)); /* DEBUG: display JSON stat */
+    writelog(str); /* DEBUG: display JSON stat */
 }
 
-void receivepacket() {
+void receivepacket(byte CE) {
 
     long int SNR;
-    int rssicorr;
+    int rssicorr, dio_port;
+    char str[200];
 
-    if(digitalRead(dio0) == 1)
+    if (CE == 0)
     {
-        if(receivePkt(message)) {
-            byte value = readRegister(REG_PKT_SNR_VALUE);
+        dio_port = dio0;
+    } else {
+        dio_port = dio0_2;
+    }
+
+    if(digitalRead(dio_port) == 1)
+    {
+        if(receivePkt(message, CE)) {
+            byte value = readRegister(REG_PKT_SNR_VALUE, CE);
+            if (CE == 0)
+            {
+	      digitalWrite(ActivityLED_0, HIGH);
+	    } else {
+	      digitalWrite(ActivityLED_1, HIGH);
+	   }
+
             if( value & 0x80 ) // The SNR sign bit is 1
             {
                 // Invert and divide by 4
@@ -396,18 +462,23 @@ void receivepacket() {
                 // Divide by 4
                 SNR = ( value & 0xFF ) >> 2;
             }
-            
+
             if (sx1272) {
                 rssicorr = 139;
             } else {
                 rssicorr = 157;
             }
 
-            printf("Packet RSSI: %d, ",readRegister(0x1A)-rssicorr);
-            printf("RSSI: %d, ",readRegister(0x1B)-rssicorr);
-            printf("SNR: %li, ",SNR);
-            printf("Length: %i",(int)receivedbytes);
-            printf("\n");
+            sprintf(str,"CE%i Packet RSSI: %d, ",CE,readRegister(0x1A, CE)-rssicorr);
+	    writelog(str);
+            sprintf(str,"RSSI: %d, ",readRegister(0x1B, CE)-rssicorr);
+	    writelog(str);
+            sprintf(str,"SNR: %li, ",SNR);
+	    writelog(str);
+            sprintf(str,"Length: %i",(int)receivedbytes);
+	    writelog(str);
+            sprintf(str,"\n");
+	    writelog(str);
 
             int j;
             j = bin_to_b64((uint8_t *)message, receivedbytes, (char *)(b64), 341);
@@ -458,7 +529,12 @@ void receivepacket() {
             ++buff_index;
             j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, "\"tmst\":%u", tmst);
             buff_index += j;
-            j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"chan\":%1u,\"rfch\":%1u,\"freq\":%.6lf", 0, 0, (double)freq/1000000);
+            if (CE == 0)
+            {
+              j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"chan\":%1u,\"rfch\":%1u,\"freq\":%.6lf", 0, 0, (double)freq/1000000);
+	    } else {
+              j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"chan\":%1u,\"rfch\":%1u,\"freq\":%.6lf", 1, 1, (double)freq_2/1000000);
+	    }
             buff_index += j;
             memcpy((void *)(buff_up + buff_index), (void *)",\"stat\":1", 9);
             buff_index += 9;
@@ -500,7 +576,7 @@ void receivepacket() {
             buff_index += 13;
             j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"lsnr\":%li", SNR);
             buff_index += j;
-            j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"rssi\":%d,\"size\":%u", readRegister(0x1A)-rssicorr, receivedbytes);
+            j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"rssi\":%d,\"size\":%u", readRegister(0x1A, CE)-rssicorr, receivedbytes);
             buff_index += j;
             memcpy((void *)(buff_up + buff_index), (void *)",\"data\":\"", 9);
             buff_index += 9;
@@ -519,12 +595,19 @@ void receivepacket() {
             ++buff_index;
             buff_up[buff_index] = 0; /* add string terminator, for safety */
 
-            printf("rxpk update: %s\n", (char *)(buff_up + 12)); /* DEBUG: display JSON payload */
-
             //send the messages
             sendudp(buff_up, buff_index);
+            sprintf(str,"rxpk update: %s\n", (char *)(buff_up + 12)); /* DEBUG: display JSON payload */
+	    writelog(str);
 
             fflush(stdout);
+    //printf("CE%i read packet\n",CE);
+    //byte test = readRegister(REG_FRF_MSB, CE);
+    //printf("Register read: %i\n", test);
+    //test = readRegister(REG_FRF_MID, CE);
+    //printf("Register read: %i\n", test);
+    //test = readRegister(REG_FRF_LSB, CE);
+    //printf("Register read: %i\n", test);
 
         } // received a message
 
@@ -538,14 +621,29 @@ int main () {
 
     wiringPiSetup () ;
     pinMode(ssPin, OUTPUT);
+    pinMode(ssPin_2, OUTPUT);
     pinMode(dio0, INPUT);
+    pinMode(dio0_2, INPUT);
     pinMode(RST, OUTPUT);
+    pinMode(NetworkLED, OUTPUT);
+    pinMode(ActivityLED_0, OUTPUT);
+    pinMode(ActivityLED_1, OUTPUT);
+    pinMode(InternetLED, OUTPUT);
 
-    //int fd = 
-    wiringPiSPISetup(CHANNEL, 500000);
+    char str[200];
+
+
+    //int fd =
+    wiringPiSPISetup(0, 500000);
+    wiringPiSPISetup(1, 500000);
     //cout << "Init result: " << fd << endl;
 
-    SetupLoRa();
+    digitalWrite(RST, HIGH);
+    delay(100);
+    digitalWrite(RST, LOW);
+    delay(100);
+    SetupLoRa(0);
+    SetupLoRa(1);
 
     if ( (s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
     {
@@ -560,20 +658,28 @@ int main () {
     ioctl(s, SIOCGIFHWADDR, &ifr);
 
     /* display result */
-    printf("Gateway ID: %.2x:%.2x:%.2x:ff:ff:%.2x:%.2x:%.2x\n",
+    sprintf(str, "Gateway ID: %.2x:%.2x:%.2x:ff:ff:%.2x:%.2x:%.2x\n",
            (unsigned char)ifr.ifr_hwaddr.sa_data[0],
            (unsigned char)ifr.ifr_hwaddr.sa_data[1],
            (unsigned char)ifr.ifr_hwaddr.sa_data[2],
            (unsigned char)ifr.ifr_hwaddr.sa_data[3],
            (unsigned char)ifr.ifr_hwaddr.sa_data[4],
            (unsigned char)ifr.ifr_hwaddr.sa_data[5]);
+    writelog(str);
 
-    printf("Listening at SF%i on %.6lf Mhz.\n", sf,(double)freq/1000000);
-    printf("------------------\n");
+    sprintf(str,"Listening at SF%i on %.6lf Mhz on CE0.\n", sf,(double)freq/1000000);
+    writelog(str);
+    sprintf(str,"Listening at SF%i on %.6lf Mhz on CE1.\n", sf,(double)freq_2/1000000);
+    writelog(str);
+    sprintf(str,"------------------\n");
+    writelog(str);
 
     while(1) {
 
-        receivepacket();
+	digitalWrite(ActivityLED_0, LOW);
+	digitalWrite(ActivityLED_1, LOW);
+        receivepacket(0);
+        receivepacket(1);
 
         gettimeofday(&nowtime, NULL);
         uint32_t nowseconds = (uint32_t)(nowtime.tv_sec);
@@ -586,7 +692,6 @@ int main () {
         }
         delay(1);
     }
-
     return (0);
 
 }
