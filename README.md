@@ -26,7 +26,7 @@ Features
 - can forward to two servers
 - Uses 2 channels (as the board has 2 RFM95's), default set to 868.1 and 868.3 frequencies
 - Autostart features
-- logging to logfile (default /var.log/lora_gateway)
+- logging to logfile (default /var/log/lora_gateway)
 
 Not (yet) supported:
 - PACKET_PUSH_ACK processing
