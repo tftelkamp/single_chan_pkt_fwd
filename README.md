@@ -2,7 +2,7 @@ Single Channel LoRaWAN Gateway
 ==============================
 This repository contains a proof-of-concept implementation of a dual
 channel LoRaWAN gateway with the Raspberry Pi+ LoRa(TM) Expansion Board of
-Uputronics. It is based on the Single Channel LoRaWan Gateway
+Uputronics. It is based on (fork) the Single Channel LoRaWan Gateway
 by Thomas Telkamp.
 
 It has been tested on the Raspberry Pi platform, using a Raspberry Pi+ 
@@ -26,6 +26,7 @@ Features
 - can forward to two servers
 - Uses 2 channels (as the board has 2 RFM95's), default set to 868.1 and 868.3 frequencies
 - Autostart features
+- logging to logfile (default /var.log/lora_gateway)
 
 Not (yet) supported:
 - PACKET_PUSH_ACK processing
