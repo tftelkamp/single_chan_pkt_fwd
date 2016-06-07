@@ -1,18 +1,22 @@
 Single Channel LoRaWAN Gateway
 ==============================
-This repository contains a proof-of-concept implementation of a single
-channel LoRaWAN gateway.
+This repository contains a proof-of-concept implementation of a dual
+channel LoRaWAN gateway with the Raspberry Pi+ LoRa(TM) Expansion Board of
+Uputronics. It is based on the Single Channel LoRaWan Gateway
+by Thomas Telkamp.
 
-It has been tested on the Raspberry Pi platform, using a Semtech SX1272
-transceiver (HopeRF RFM92W), and SX1276 (HopeRF RFM95W).
-
-The code is for testing and development purposes only, and is not meant 
-for production usage. 
+It has been tested on the Raspberry Pi platform, using a Raspberry Pi+ 
+LoRa(TM) Expansion Board with 2 SX1276 (HopeRF RFM95W) on board.
 
 Part of the source has been copied from the Semtech Packet Forwarder 
 (with permission).
 
 Maintainer: Thomas Telkamp <thomas@telkamp.eu>
+
+The code is for testing and development purposes only, and is not meant 
+for production usage. 
+
+I will continue update this code for our own purposes; Hans Boksem (hans.boksem@gmail.com)
 
 Features
 --------
@@ -20,6 +24,8 @@ Features
 - SF7 to SF12
 - status updates
 - can forward to two servers
+- Uses 2 channels (as the board has 2 RFM95's), default set to 868.1 and 868.3 frequencies
+- Autostart features
 
 Not (yet) supported:
 - PACKET_PUSH_ACK processing
@@ -27,35 +33,66 @@ Not (yet) supported:
 - FSK modulation
 - downstream messages (tx)
 
-Dependencies
-------------
-- SPI needs to be enabled on the Raspberry Pi (use raspi-config)
-- WiringPi: a GPIO access library written in C for the BCM2835 
-  used in the Raspberry Pi.
-  sudo apt-get install wiringpi
-  see http://wiringpi.com
-- Run packet forwarder as root
+Preparation, setup and running
+------------------------------
+
+Prepare SD Card
+- download raspbian jessie lite
+- unpack zip
+- write img file with win32DiskImager or alike
+
+Prepare Pi
+- Insert SD card
+- Start raspberry pi
+- figure out the IP address (look into the routers DHCP config or attach monitor and find out there)
+- login to the rasp (un/pw pi/raspberry)
+- change the password (with passwd)
+- run raspi-config (sudo raspi-config)
+- Expand the filesystem 
+- Goto advanced config and select SPI
+- Enable SPI interface
+- Enable loading of SPI kernel module by default
+- exit the raspi-config and reboot
+
+Install dependencies
+- update the pkg database (twice command: sudo apt-get update)
+- install wiringpi (sudo apt-get wiringpi)
+
+Install dual_chan_pkt_fw
+- Put the zip file on the pi (using winscp or alike)
+- unzip the file
+- cd into the dual_chan_pkt_fw folder
+- change the main.cpp with your gateway parameters (Informal status fields; platform, email, description) and location (lat,lon,alt))
+- compile the dual_chan_pkt_fwd (make)
+
+Install autostart dual_chan_pkt_fw
+- copy the lora_gateway.sh script to /etc/init.d (sudo cp lora_gateway.sh /etc/init.d)
+- set execute permission on lora_gateway.sh (sudo chmod a+x /etc/init.d/lora_gateway.sh)
+- set execute permission on lora_gw_startup.sh (sudo chmod a+x lora_gw_startup.sh)
+- configure the autostart (sudo update-rc.d lora_gateway.sh defaults)
+
+Starting the dual_chan_pkt_fwd
+- to start the dual_chan_pkt_fwd reboot or start via the commandline (/etc/init.d/lora_gateway.sh restart)
+- Remember; it takes about 10 seconds to start the gateway...
+
+Check the log
+- Logging is done within the file /var/log/lora_gateway
+- Remember; it takes about 10 seconds to start the gateway...
+
+Troubleshooting
+- When after rebooting one of the LEDs on the Hat (INTERNET) is on continuosly this means there is something wrong with the network. Fix the network, login and restart the lora_gateway
 
 Connections
 -----------
-SX1272 - Raspberry
-
-3.3V   - 3.3V (header pin #1) 
-GND	   - GND (pin #6)
-MISO   - MISO (pin #21)
-MOSI   - MOSI (pin #19)
-SCK    - CLK (pin #23)
-NSS    - GPIO6 (pin #22)
-DIO0   - GPIO7 (pin #7)
-RST    - GPIO0 (pin #11)
+It is a raspberry Pi hat so just pop it on an rasp 2 or 3
 
 Configuration
 -------------
 
 Defaults:
 
-- LoRa:   SF7 at 868.1 Mhz
-- Server: 54.229.214.112, port 1700  (The Things Network: croft.thethings.girovito.nl)
+- LoRa:   SF7 at 868.1 and 868.3 Mhz
+- Server: 40.114.249.243 port 1700  (The Things Network: router.eu.thethings.network)
 
 Edit source node (main.cpp) to change configuration (look for: "Configure these values!").
 
