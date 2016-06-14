@@ -1,4 +1,4 @@
-Single Channel LoRaWAN Gateway
+Dual Channel LoRaWAN Gateway
 ==============================
 This repository contains a proof-of-concept implementation of a dual
 channel LoRaWAN gateway with the Raspberry Pi+ LoRa(TM) Expansion Board of
