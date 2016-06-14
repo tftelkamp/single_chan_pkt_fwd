@@ -61,7 +61,7 @@ Install dependencies
 - install wiringpi (sudo apt-get wiringpi)
 
 Install dual_chan_pkt_fw
-- Put the zip file on the pi (using winscp or alike)
+- Put the zip file on the pi (using winscp or alike) or use git to clone the repository (git clone https://github.com/bokse001/dual_chan_pkt_fwd)
 - unzip the file
 - cd into the dual_chan_pkt_fw folder
 - change the main.cpp with your gateway parameters (Informal status fields; platform, email, description) and location (lat,lon,alt))
