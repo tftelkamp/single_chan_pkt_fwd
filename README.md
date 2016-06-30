@@ -58,7 +58,7 @@ Prepare Pi
 
 Install dependencies
 - update the pkg database (twice command: sudo apt-get update)
-- install wiringpi (sudo apt-get wiringpi)
+- install wiringpi (sudo apt-get install wiringpi)
 
 Install dual_chan_pkt_fw
 - Put the zip file on the pi (using winscp or alike) or use git to clone the repository (git clone https://github.com/bokse001/dual_chan_pkt_fwd)
