@@ -97,6 +97,8 @@ Defaults:
 - Server: 40.114.249.243 port 1700  (The Things Network: router.eu.thethings.network)
 
 Edit source node (main.cpp) to change configuration (look for: "Configure these values!").
+If you want to use wifi change the following line to represent you wifi device:
+strncpy(ifr.ifr_name, "eth0", IFNAMSIZ-1);
 
 Please set location, email and description.
 
