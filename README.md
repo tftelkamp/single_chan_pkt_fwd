@@ -139,7 +139,7 @@ Pictures
 
 running daemon on Raspberry PI with uputronics Raspberry Pi+ LoRa(TM) Expansion Board    
 
-<img src="https://raw.githubusercontent.com/bokse001/dual_chan_pkt_fwd/master/images/dual-channel-gw-ttn.jpg" alt="Dual Channel GW TTN">
+<img src="https://github.com/bokse001/dual_chan_pkt_fwd/blob/master/images/dual-channel-gw-ttn.jpg" alt="Dual Channel GW TTN">
 
 
 running daemon on Raspberry PI with LoRasPI shield    
