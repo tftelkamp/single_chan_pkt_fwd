@@ -1,0 +1,5 @@
+lorawan-single-packet-gateway (1.0) UNRELEASED; urgency=low
+
+  * Initial release.
+
+ -- Matthew Macdonald-Wallace <matt@doics.co>  Thu, 24 Nov 2016 08:21:43 +0000
