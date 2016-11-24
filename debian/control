@@ -5,8 +5,6 @@ Priority: optional
 Standards-Version: 3.9.2
 Build-Depends: 
         debhelper (>= 9),
-        libmysqlclient-dev,
-        libcurl4-openssl-dev
 
 Package: lorawan-single-packet-gateway
 Architecture: all

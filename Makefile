@@ -20,4 +20,6 @@ clean:
 	-rm *.o single_chan_pkt_fwd	
 
 install:
+	mkdir -p $(DESTDIR)$(prefix)/lib/systemd/system
 	install -m 0755 single_chan_pkt_fwd $(DESTDIR)$(prefix)/sbin
+	install -m 0755 debian/lorawan-single-packet-gateway.systemd $(DESTDIR)$(prefix)/lib/systemd/system/lorawan-spgw.service
