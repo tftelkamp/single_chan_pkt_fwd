@@ -1,0 +1,14 @@
+[Unit]
+Description=LoRaWAN Single Channel Gateway
+After=syslog.target
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/single_chan_pkt_fwd
+
+# Give a reasonable amount of time for the server to start up/shut down
+TimeoutSec=300
+
+[Install]
+WantedBy=multi-user.target
