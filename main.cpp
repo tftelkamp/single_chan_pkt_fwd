@@ -112,8 +112,6 @@ static char description[64] = "Singe Channel Gateway [v0.1]";  /* used for free 
 // #############################################
 std::map<std::string, std::pair<std::string, int> > serverList;
 
-static char description[64] = ""; /* Will be set automatically containing the frequency and spreading factor values */
-
 
 #define REG_FIFO                    0x00
 #define REG_FIFO_ADDR_PTR           0x0D
