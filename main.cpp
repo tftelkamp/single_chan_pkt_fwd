@@ -310,9 +310,7 @@ void SetupLoRa()
     printf("CS   : %i.\n",csPin);
     printf("DIO0 : %i.\n",dio0Pin);
     printf("RST  : %i.\n",rstPin);
-    
     printf("Startup.\n");
-    
     digitalWrite(rstPin, HIGH);
     delay(100);
     digitalWrite(rstPin, LOW);
