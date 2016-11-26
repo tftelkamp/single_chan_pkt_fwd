@@ -411,56 +411,17 @@ int resolve_ip_address(const char * hostname , char* ip) {
 void sendudp(char *msg, int length) {
 
 //send the update
-
-#ifdef SERVER1_NAME
-    if (strlen(SERVER1_NAME) >= 100)
-    {
-        die("server name is too long");
-    }
-    
-    char addr[100];
-
-    //resolve the hostname every time we want to send something
-    if (resolve_ip_address(SERVER1_NAME, addr) == 0)
-	{
-       printf("%s resolved to %s\n" , SERVER1_NAME, addr);
-
-       inet_aton(addr, &si_other.sin_addr);
-       if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
-       {
-           die("sendto()");
-       }
-
-    } 
-    else 
-    {
-        die("resolve hostname()");
-    }
-#endif
-
-
-#ifdef SERVER1
-    inet_aton(SERVER1 , &si_other.sin_addr);
-    if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
-    {
-        die("sendto()");
-    }
-#endif
-
-#ifdef SERVER2
-    inet_aton(SERVER2 , &si_other.sin_addr);
-    if (sendto(s, (char *)msg, length , 0 , (struct sockaddr *) &si_other, slen)==-1)
-    {
-	si_other.sin_port = htons(iter->second.second);
-	inet_aton(iter->second.first.c_str(), &si_other.sin_addr);
-	if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
-	{
-		die("sendto()");
-	}
-   }
-#endif
+std::map<std::string, std::pair<std::string, int> >::iterator iter;
+for(iter = serverList.begin(); iter != serverList.end(); iter++)
+ {
+ 	si_other.sin_port = htons(iter->second.second);
+ 	inet_aton(iter->second.first.c_str(), &si_other.sin_addr);
+ 	if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
+ 	{
+ 		die("sendto()");
+ 	}
+ }
 }
-
 void sendstat() {
 
     static char status_report[STATUS_SIZE]; /* status report as a JSON object */
