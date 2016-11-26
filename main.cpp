@@ -41,6 +41,7 @@ char message[256];
 char b64[256];
 
 bool sx1272 = true;
+int maxMessages = 10;
 
 byte receivedbytes;
 
@@ -63,9 +64,9 @@ enum sf_t { SF7=7, SF8, SF9, SF10, SF11, SF12 };
  *******************************************************************************/
 
 // SX1272 - Raspberry connections
-int ssPin = 6;
-int dio0  = 7;
-int RST   = 0;
+int csPin   = 6;  // SX1272 nss  on Pi GPIO1 
+int dio0Pin = 7;  // SX1272 dio0 on Pi GPIO17
+int rstPin  = 0;  // SX1272 rst  on Pi GPIO0 
 
 // Set spreading factor (SF7 - SF12)
 sf_t sf = SF7;
@@ -74,14 +75,14 @@ sf_t sf = SF7;
 uint32_t  freq = 868100000; // in Mhz! (868.1)
 
 // Set location
-float lat=0.0;
-float lon=0.0;
-int   alt=0;
+float lat=51.572101;
+float lon=4.797998;
+int   alt=2;
 
 /* Informal status fields */
 static char platform[24]    = "Single Channel Gateway";  /* platform definition */
-static char email[40]       = "";                        /* used for contact email */
-static char description[64] = "";                        /* used for free form description */
+static char email[40]       = "ivo.knutsel@gmail.com";                        /* used for contact email */
+static char description[64] = "Test of Pi and NiceRF module.";                        /* used for free form description */
 
 // define servers
 // TODO: use host names and dns
@@ -168,25 +169,25 @@ void die(const char *s)
     exit(1);
 }
 
-void selectreceiver()
+void enableCS()
 {
-    digitalWrite(ssPin, LOW);
+    digitalWrite(csPin, LOW);
 }
 
-void unselectreceiver()
+void disableCS()
 {
-    digitalWrite(ssPin, HIGH);
+    digitalWrite(csPin, HIGH);
 }
 
 byte readRegister(byte addr)
 {
     unsigned char spibuf[2];
 
-    selectreceiver();
+    enableCS();
     spibuf[0] = addr & 0x7F;
     spibuf[1] = 0x00;
     wiringPiSPIDataRW(CHANNEL, spibuf, 2);
-    unselectreceiver();
+    disableCS();
 
     return spibuf[1];
 }
@@ -197,10 +198,10 @@ void writeRegister(byte addr, byte value)
 
     spibuf[0] = addr | 0x80;
     spibuf[1] = value;
-    selectreceiver();
+    enableCS();
     wiringPiSPIDataRW(CHANNEL, spibuf, 2);
 
-    unselectreceiver();
+    disableCS();
 }
 
 
@@ -240,11 +241,18 @@ boolean receivePkt(char *payload)
 
 void SetupLoRa()
 {
+    printf("CS   : %i.\n",csPin);
+    printf("DIO0 : %i.\n",dio0Pin);
+    printf("RST  : %i.\n",rstPin);
     
-    digitalWrite(RST, HIGH);
+    printf("Startup.\n");
+    
+    digitalWrite(rstPin, HIGH);
     delay(100);
-    digitalWrite(RST, LOW);
+    digitalWrite(rstPin, LOW);
     delay(100);
+
+    printf("Reset.\n");
 
     byte version = readRegister(REG_VERSION);
 
@@ -254,9 +262,9 @@ void SetupLoRa()
         sx1272 = true;
     } else {
         // sx1276?
-        digitalWrite(RST, LOW);
+        digitalWrite(rstPin, LOW);
         delay(100);
-        digitalWrite(RST, HIGH);
+        digitalWrite(rstPin, HIGH);
         delay(100);
         version = readRegister(REG_VERSION);
         if (version == 0x12) {
@@ -381,9 +389,11 @@ void receivepacket() {
     long int SNR;
     int rssicorr;
 
-    if(digitalRead(dio0) == 1)
+    if(digitalRead(dio0Pin) == 1)
     {
-        if(receivePkt(message)) {
+        if(receivePkt(message) && (maxMessages >0)) {
+            maxMessages--;
+            
             byte value = readRegister(REG_PKT_SNR_VALUE);
             if( value & 0x80 ) // The SNR sign bit is 1
             {
@@ -537,9 +547,9 @@ int main () {
     uint32_t lasttime;
 
     wiringPiSetup () ;
-    pinMode(ssPin, OUTPUT);
-    pinMode(dio0, INPUT);
-    pinMode(RST, OUTPUT);
+    pinMode(csPin, OUTPUT);
+    pinMode(dio0Pin, INPUT);
+    pinMode(rstPin, OUTPUT);
 
     //int fd = 
     wiringPiSPISetup(CHANNEL, 500000);
