@@ -104,9 +104,9 @@ static char description[64] = "Singe Channel Gateway [v0.1]";  /* used for free 
 
 // define servers
 // TODO: use host names and dns
-#define SERVER1 "40.114.249.243"      // router.eu.thethings.network
+#define DEFAULTSERVER "40.114.249.243"      // router.eu.thethings.network
 //#define SERVER2 "192.168.1.10"      // local
-#define PORT 1700                   // The port on which to send data
+#define DEFAULTPORT 1700                   // The port on which to send data
 
 // #############################################
 // #############################################
@@ -193,6 +193,16 @@ void die(const char *s)
 void enableCS()
 {
     digitalWrite(csPin, LOW);
+}
+
+void selectreceiver()
+{
+    digitalWrite(csPin, LOW);
+}
+
+ void unselectreceiver()
+{
+    digitalWrite(csPin, HIGH);
 }
 
 void disableCS()
