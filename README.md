@@ -36,6 +36,27 @@ Dependencies
   see http://wiringpi.com
 - Run packet forwarder as root
 
+Building packages for Debian Distributions
+------------------------------------------
+
+If you are running a debian distribution such as raspbian on
+your pi, you can now create a debian package to install on
+multiple devices by running the following commands:
+
+```bash
+sudo apt-get install devscripts build-essential lintian
+debuild
+cd ..
+sudo dpkg -i lorawan-single-packet-gateway*.deb
+# Enable and start the service
+sudo systemctl enable lorawan-spgw
+sudo systemctl start lorawan-spgw
+```
+
+NOTE: You will need a GPG key installed on the pi you are
+building from, and you must build on a device with the same
+architecture as that to which you will deploy.
+
 Connections
 -----------
 

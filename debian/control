@@ -3,10 +3,9 @@ Maintainer: Matthew Macdonald-Wallace <matt@doics.co>
 Section: misc
 Priority: optional
 Standards-Version: 3.9.2
-Build-Depends: 
-        debhelper (>= 9),
+Build-Depends: debhelper (>= 9), wiringpi
 
 Package: lorawan-single-packet-gateway
 Architecture: all
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: wiringpi, ${shlibs:Depends}, ${misc:Depends}
 Description: LoRaWAN Single Packet Gateway
