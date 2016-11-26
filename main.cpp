@@ -43,6 +43,7 @@ char b64[256];
 bool sx1272 = true;
 int maxMessages = 10;
 
+byte modemstat;
 byte receivedbytes;
 
 struct sockaddr_in si_other;
@@ -81,12 +82,12 @@ int   alt=2;
 
 /* Informal status fields */
 static char platform[24]    = "Single Channel Gateway";  /* platform definition */
-static char email[40]       = "ivo.knutsel@gmail.com";                        /* used for contact email */
-static char description[64] = "Test of Pi and NiceRF module.";                        /* used for free form description */
+static char email[40]       = "";                        /* used for contact email */
+static char description[64] = "Singe Channel Gateway [v0.1]";  /* used for free form description */
 
 // define servers
 // TODO: use host names and dns
-#define SERVER1 "54.72.145.119"    // The Things Network: croft.thethings.girovito.nl
+#define SERVER1 "40.114.249.243"      // router.eu.thethings.network
 //#define SERVER2 "192.168.1.10"      // local
 #define PORT 1700                   // The port on which to send data
 
@@ -106,6 +107,7 @@ static char description[64] = "Test of Pi and NiceRF module.";                  
 #define REG_MODEM_CONFIG            0x1D
 #define REG_MODEM_CONFIG2           0x1E
 #define REG_MODEM_CONFIG3           0x26
+#define REG_MODEM_STAT              0x18
 #define REG_SYMB_TIMEOUT_LSB  		0x1F
 #define REG_PKT_SNR_VALUE			0x19
 #define REG_PAYLOAD_LENGTH          0x22
@@ -212,7 +214,8 @@ boolean receivePkt(char *payload)
     writeRegister(REG_IRQ_FLAGS, 0x40);
 
     int irqflags = readRegister(REG_IRQ_FLAGS);
-
+    modemstat = readRegister(REG_MODEM_STAT);
+    
     cp_nb_rx_rcv++;
 
     //  payload crc: 0x20
@@ -506,8 +509,28 @@ void receivepacket() {
             }
             memcpy((void *)(buff_up + buff_index), (void *)"BW125\"", 6);
             buff_index += 6;
-            memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/5\"", 13);
-            buff_index += 13;
+            switch((int)((modemstat & 0xE0) >> 5)) {
+            case 1:
+                memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/5\"", 13);
+                buff_index += 13;
+                break;
+            case 2:
+                memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/6\"", 13);
+                buff_index += 13;
+                break;
+            case 3:
+                memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/7\"", 13);
+                buff_index += 13;
+                break;
+            case 4:
+                memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"4/8\"", 13);
+                buff_index += 13;
+                break;
+            default:
+                memcpy((void *)(buff_up + buff_index), (void *)",\"codr\":\"?\"", 13);
+                buff_index += 11;
+            }
+
             j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"lsnr\":%li", SNR);
             buff_index += j;
             j = snprintf((char *)(buff_up + buff_index), TX_BUFF_SIZE-buff_index, ",\"rssi\":%d,\"size\":%u", readRegister(0x1A)-rssicorr, receivedbytes);
