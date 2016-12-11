@@ -1,0 +1,44 @@
+{
+  "SX127x_conf":
+  {
+    "freq": 868100000,
+    "freq_2": 868300000,
+    "spread_factor": 7,
+    "pin_nss": 10,
+    "pin_dio0": 6,
+    "pin_nss_2": 11,
+    "pin_dio0_2": 27,
+    "pin_rst": 0,
+    "pin_led1":4,
+    "pin_NetworkLED": 22,
+    "pin_InternetLED": 23,
+    "pin_ActivityLED_0": 21,
+    "pin_ActivityLED_1": 29
+  },
+  "gateway_conf":
+  {
+    "ref_latitude": 0.0,
+    "ref_longitude": 0.0,
+    "ref_altitude": 10,
+
+    "name": "your name",
+    "email": "a@b.c",
+    "desc": "Dual channel pkt forwarder",
+
+    "interface": "eth0",
+
+    "servers":
+    [
+      {
+        "address": "router.eu.staging.thethings.network",
+        "port": 1700,
+        "enabled": true
+      },
+      {
+        "address": "router.eu.thethings.network",
+        "port": 1700,
+        "enabled": false
+      }
+    ]
+  }
+}

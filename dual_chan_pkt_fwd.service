@@ -1,0 +1,14 @@
+[Unit]
+Description=Lora Packet Forwarder
+After=syslog.target
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/dual_chan_pkt_fwd/
+ExecStart=/home/pi/dual_chan_pkt_fwd/dual_chan_pkt_fwd 
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
