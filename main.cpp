@@ -10,6 +10,8 @@
  *******************************************************************************/
 
 #include <string>
+#include <sstream>
+#include <map>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -19,9 +21,10 @@
 #include <cstdlib>
 #include <sys/time.h>
 #include <cstring>
-
+#include <errno.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
+#include <netdb.h>
 
 using namespace std;
 
@@ -56,6 +59,17 @@ uint32_t cp_up_pkt_fwd;
 
 enum sf_t { SF7=7, SF8, SF9, SF10, SF11, SF12 };
 
+enum {
+	EU868_F1 = 868100000, // g1 SF7-12
+	EU868_F2 = 868300000, // g1 SF7-12 FSK SF7/250
+	EU868_F3 = 868500000, // g1 SF7-12
+	EU868_F4 = 868850000, // g2 SF7-12
+	EU868_F5 = 869050000, // g2 SF7-12
+	EU868_F6 = 869525000, // g3 SF7-12
+	EU868_J4 = 864100000, // g2 SF7-12 used during join
+	EU868_J5 = 864300000, // g2 SF7-12 ditto
+	EU868_J6 = 864500000, // g2 SF7-12 ditto
+};
 /*******************************************************************************
  *
  * Configure these values!
@@ -64,8 +78,11 @@ enum sf_t { SF7=7, SF8, SF9, SF10, SF11, SF12 };
 
 // SX1272 - Raspberry connections
 int ssPin = 6;
-int dio0  = 7;
-int RST   = 0;
+int dio0  = 5;
+int RST   = 6;
+
+#define DEFAULTSERVER "croft.thethings.girovito.nl"
+#define DEFAULTPORT   1700   //The port on which to send data
 
 // Set spreading factor (SF7 - SF12)
 sf_t sf = SF7;
@@ -81,16 +98,13 @@ int   alt=0;
 /* Informal status fields */
 static char platform[24]    = "Single Channel Gateway";  /* platform definition */
 static char email[40]       = "";                        /* used for contact email */
-static char description[64] = "";                        /* used for free form description */
-
-// define servers
-// TODO: use host names and dns
-#define SERVER1 "54.72.145.119"    // The Things Network: croft.thethings.girovito.nl
-//#define SERVER2 "192.168.1.10"      // local
-#define PORT 1700                   // The port on which to send data
 
 // #############################################
 // #############################################
+std::map<std::string, std::pair<std::string, int> > serverList;
+
+static char description[64] = ""; /* Will be set automatically containing the frequency and spreading factor values */
+
 
 #define REG_FIFO                    0x00
 #define REG_FIFO_ADDR_PTR           0x0D
@@ -178,6 +192,39 @@ void unselectreceiver()
     digitalWrite(ssPin, HIGH);
 }
 
+int hostToIp(const char *host, char *ip, const int bufflen)
+{
+    struct addrinfo hints, *servinfo, *p;
+    struct sockaddr_in *h;
+    int ret=-1;
+
+    if(bufflen < INET6_ADDRSTRLEN)
+	die("hostToIP, supplied buffer too short");
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if((ret = getaddrinfo(host, NULL, NULL, &servinfo)) != 0)
+    {
+		std::stringstream error;
+		error << "Failed to look up server: ";
+		error << host;
+		error << ", ";
+		error << gai_strerror(ret);
+		die(error.str().c_str());
+    }
+
+    for(p = servinfo; p != NULL; p = p->ai_next)
+    {
+        h = (struct sockaddr_in *) p->ai_addr;
+        strncpy(ip , inet_ntoa( h->sin_addr ), bufflen);
+    }
+
+    freeaddrinfo(servinfo);
+    return 0;
+}
+
 byte readRegister(byte addr)
 {
     unsigned char spibuf[2];
@@ -185,7 +232,8 @@ byte readRegister(byte addr)
     selectreceiver();
     spibuf[0] = addr & 0x7F;
     spibuf[1] = 0x00;
-    wiringPiSPIDataRW(CHANNEL, spibuf, 2);
+    if(wiringPiSPIDataRW(CHANNEL, spibuf, 2) < 0)
+	fprintf (stderr, "readRegister failed: %s\n", strerror (errno));
     unselectreceiver();
 
     return spibuf[1];
@@ -264,7 +312,7 @@ void SetupLoRa()
             printf("SX1276 detected, starting.\n");
             sx1272 = false;
         } else {
-            printf("Unrecognized transceiver.\n");
+            printf("Unrecognized transceiver.: %x\n", version);
             //printf("Version: 0x%x\n",version);
             exit(1);
         }
@@ -315,22 +363,16 @@ void SetupLoRa()
 
 void sendudp(char *msg, int length) {
 
-//send the update
-#ifdef SERVER1
-    inet_aton(SERVER1 , &si_other.sin_addr);
-    if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
+    std::map<std::string, std::pair<std::string, int> >::iterator iter;
+    for(iter = serverList.begin(); iter != serverList.end(); iter++)
     {
-        die("sendto()");
-    }
-#endif
-
-#ifdef SERVER2
-    inet_aton(SERVER2 , &si_other.sin_addr);
-    if (sendto(s, (char *)msg, length , 0 , (struct sockaddr *) &si_other, slen)==-1)
-    {
-        die("sendto()");
-    }
-#endif
+	si_other.sin_port = htons(iter->second.second);
+	inet_aton(iter->second.first.c_str(), &si_other.sin_addr);
+	if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
+	{
+		die("sendto()");
+	}
+   }
 }
 
 void sendstat() {
@@ -531,8 +573,157 @@ void receivepacket() {
     } // dio0=1
 }
 
-int main () {
+void parseCommandline(int argc, char *argv[])
+{
+	for(int i=1; i<argc; i++)
+	{
+	    if( 0 == strncasecmp(argv[i], "-u", 2))
+	    {
+		char ip[INET6_ADDRSTRLEN];
+		std::string server = argv[i]+2;
+		int port = DEFAULTPORT;
+		if(server.find(':') != std::string::npos )
+		{
+		   std::stringstream parser(server.substr(server.find(':')+1, std::string::npos));
+		   parser >> port;
+		   server = server.substr(0, server.find(':'));
+		   if(port == 0)
+		   {
+			std::stringstream error;
+			error << "Invalid server string given, cannot parse given port number: ";
+			error << parser.str();
+			die(error.str().c_str());
+		   }
+		   else if(port < 1024)
+		   {
+			die("Don't use priviledged ports < 1024 for sending");
+		   }
+		}
+                hostToIp(server.c_str(), ip, INET6_ADDRSTRLEN);
+                std::string address = ip;
+                serverList.insert(std::make_pair(server, std::make_pair(address, port)));
+	    }
+	    else if(0 == strncasecmp(argv[i], "-sf", 3))
+	    {
+		int sFactor=0;
+		std::string sfString=argv[i]+3;
+		std::stringstream parser(sfString);
+		parser >> sFactor;
 
+		switch(sFactor)
+		{
+		   case 7:
+			sf = SF7;
+			break;
+		   case 8:
+			sf = SF8;
+                        break;
+		   case 9:
+                        sf = SF9;
+                        break;
+		   case 10:
+                        sf = SF10;
+                        break;
+		   case 11:
+                        sf = SF11;
+                        break;
+		   case 12:
+                        sf = SF12;
+                        break;
+		   default:
+			die("Invalid spreading factor specified, valid range is 7-12");
+		}
+	    }
+	    else if(0 == strncasecmp(argv[i], "-f", 2))
+	    {
+		uint32_t frequency=0;
+		std::string fString=argv[i]+2;
+		std::stringstream parser(fString);
+		parser >> frequency;
+
+		if(frequency >= EU868_J4 && frequency <= EU868_F6)
+		{
+		        //EUR Channels
+		        if(frequency    == EU868_F1
+				   || frequency == EU868_F2
+				   || frequency == EU868_F3
+				   || frequency == EU868_F4
+				   || frequency == EU868_F5
+				   || frequency == EU868_F6
+				   || frequency == EU868_J4
+				   || frequency == EU868_J5
+				   || frequency == EU868_J6)
+		       {
+			      freq = frequency;
+		       }
+		       else
+		       {
+					std::stringstream error;
+					error << "Invalid EU channel specified: ";
+					error << frequency;
+					error << "Hz";
+					die(error.str().c_str());
+			}
+		}
+		else if(frequency >=902000000 && frequency <= 928000000)
+		{
+			//Todo valid channels in the US
+			freq = frequency;
+		}
+		else
+		{
+			std::stringstream error;
+			error <<  "The specified frequency ";
+			error <<  frequency;
+			error <<  "Hz is outside of any valid ISM band.";
+			die(error.str().c_str());
+		}
+	    }
+	    else
+	    {
+			std::cout << "Usage: " << argv[0] << " [-uSERVERNAMEORIP[:PORT]] [-sf(7-12)] [-fFREQUENCYHZ]" << std::endl;
+			std::cout << "   Example: " << argv[0] << " -ucroft.thethings.girovito.nl" << std::endl;
+			std::cout << "   Example: " << argv[0] << " -ucroft.thethings.girovito.nl:1700" << std::endl;
+			std::cout << "   Example: " << argv[0] << " -u192.168.0.111 -sf8 -f868100000" << std::endl;
+			std::cout << "   Multiple servers can be supplied with multiple -u parameters." << std::endl;
+			std::cout << "   When no server is supplied, the default server is used (" << DEFAULTSERVER << ")." << std::endl;
+			std::cout << "   When no port is supplied, the default port is used (" << DEFAULTPORT << ")." << std::endl;
+			std::cout << "   Spreading factor can be specified using -sf7 to -sf12 (default value is SF7)" << std::endl;
+			std::cout << "   Listening frequency can be specified using -fFREQUENCY in Hz. (default 868100000)" << std::endl;
+			std::cout << "   European frequencies are checked for a valid Lora channel, valid Frequencies are: " << std::endl;
+			std::cout << "     868100000Hz, 868300000Hz, 868500000Hz," << std::endl;
+			std::cout << "     868850000Hz, 869050000Hz, 869525000Hz," << std::endl;
+			std::cout << "     864100000Hz, 864300000Hz, 864500000Hz"  << std::endl;
+			std::cout << "   The 900MHz Range (902-928MHz) is currently not validated." << std::endl << std::endl;
+
+			std::stringstream error;
+			error  << "Unknown command line parameter: ";
+			error  << argv[i];
+			die(error.str().c_str());
+	    }
+	}
+
+	if( 0 == serverList.size())
+	{
+		//Add the default server, if no servers are given on the command line, to make it work as before
+		//without any parameters supplied.
+		char ip[INET6_ADDRSTRLEN];
+		hostToIp(DEFAULTSERVER, ip, INET6_ADDRSTRLEN);
+		std::string server = DEFAULTSERVER;
+		std::string address = ip;
+		serverList.insert(std::make_pair(server, std::make_pair(address, DEFAULTPORT)));
+	}
+
+}
+
+int main(int argc, char *argv[] ) {
+
+    parseCommandline(argc, argv);
+    std::stringstream desc;
+    desc << "Single channel, ";
+    desc << (double)freq/1000000 << "MHz, ";
+    desc << "SF" << sf;
+    strncpy(description, desc.str().c_str(), 64);
     struct timeval nowtime;
     uint32_t lasttime;
 
@@ -542,7 +733,8 @@ int main () {
     pinMode(RST, OUTPUT);
 
     //int fd = 
-    wiringPiSPISetup(CHANNEL, 500000);
+    if(wiringPiSPISetup(CHANNEL, 500000) < 0)
+		fprintf (stderr, "SPI Setup failed: %s\n", strerror (errno));
     //cout << "Init result: " << fd << endl;
 
     SetupLoRa();
@@ -553,7 +745,7 @@ int main () {
     }
     memset((char *) &si_other, 0, sizeof(si_other));
     si_other.sin_family = AF_INET;
-    si_other.sin_port = htons(PORT);
+    si_other.sin_port = htons(DEFAULTPORT);
 
     ifr.ifr_addr.sa_family = AF_INET;
     strncpy(ifr.ifr_name, "eth0", IFNAMSIZ-1);  // can we rely on eth0?
@@ -569,6 +761,13 @@ int main () {
            (unsigned char)ifr.ifr_hwaddr.sa_data[5]);
 
     printf("Listening at SF%i on %.6lf Mhz.\n", sf,(double)freq/1000000);
+
+    std::map<std::string, std::pair<std::string, int> >::iterator iter;
+    for(iter = serverList.begin(); iter != serverList.end(); iter++)
+    {
+        printf("Forwarding packets to: %s (%s), port: %d\n", iter->first.c_str(), iter->second.first.c_str(), iter->second.second);
+    }
+
     printf("------------------\n");
 
     while(1) {
