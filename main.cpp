@@ -13,7 +13,9 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <string.h>
 #include <iostream>
 #include <cstdlib>
@@ -29,6 +31,8 @@ using namespace std;
 
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
+
+struct hostent *hostent1 = NULL, *hostent2 = NULL;
 
 typedef bool boolean;
 typedef unsigned char byte;
@@ -84,9 +88,8 @@ static char email[40]       = "";                        /* used for contact ema
 static char description[64] = "";                        /* used for free form description */
 
 // define servers
-// TODO: use host names and dns
-#define SERVER1 "54.72.145.119"    // The Things Network: croft.thethings.girovito.nl
-//#define SERVER2 "192.168.1.10"      // local
+#define SERVER1 "staging.thethings.network"
+// #define SERVER2 "another.name.local"
 #define PORT 1700                   // The port on which to send data
 
 // #############################################
@@ -313,24 +316,31 @@ void SetupLoRa()
 
 }
 
+// Send the update
 void sendudp(char *msg, int length) {
-
-//send the update
-#ifdef SERVER1
-    inet_aton(SERVER1 , &si_other.sin_addr);
-    if (sendto(s, (char *)msg, length, 0 , (struct sockaddr *) &si_other, slen)==-1)
-    {
-        die("sendto()");
-    }
-#endif
-
-#ifdef SERVER2
-    inet_aton(SERVER2 , &si_other.sin_addr);
-    if (sendto(s, (char *)msg, length , 0 , (struct sockaddr *) &si_other, slen)==-1)
-    {
-        die("sendto()");
-    }
-#endif
+    if (hostent1)
+      {
+       int i = 0;
+       while (hostent1->h_addr_list[i] != NULL) {
+	 bcopy((char *)hostent1->h_addr_list[i],
+               (char *)&si_other.sin_addr.s_addr, hostent1->h_length);
+         if (sendto(s, (char *)msg, length, 0, (struct sockaddr *) &si_other, slen) == -1)
+           die("sendto()");
+	 i++;
+       }
+      }
+    if (hostent2)
+      {
+	int i = 0;
+	while (hostent2->h_addr_list[i] != NULL) {
+          printf("sending hostent2 %d\n", i);
+          bcopy((char *)hostent2->h_addr_list[i],
+		(char *)&si_other.sin_addr.s_addr, hostent2->h_length);
+	  if (sendto(s, (char *)msg, length, 0, (struct sockaddr *) &si_other, slen) == -1)
+	    die("sendto()");
+          i++;
+	}
+      }
 }
 
 void sendstat() {
@@ -547,6 +557,22 @@ int main () {
 
     SetupLoRa();
 
+    // DNS lookups
+#if !defined(SERVER1) && !defined(SERVER2)
+#error "SERVER1 or SERVER2 must be defined"
+#endif
+
+#ifdef SERVER1
+    hostent1 = gethostbyname(SERVER1);
+#endif
+#ifdef SERVER2
+    hostent2 = gethostbyname(SERVER2);
+#endif
+
+    if (!hostent1 && !hostent2)
+    {
+	die("DNS lookup");
+    }
     if ( (s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
     {
         die("socket");
