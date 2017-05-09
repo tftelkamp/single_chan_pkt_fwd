@@ -1,3 +1,10 @@
+*** IMPORTANT ***
+
+Please note this repository is deprecated, and the code is not up-to-date to use on The Things Network.
+
+This repository will not be further maintained. Please find another repository if you want to deploy a single channel gateway.
+
+
 Single Channel LoRaWAN Gateway
 ==============================
 This repository contains a proof-of-concept implementation of a single
@@ -11,8 +18,6 @@ for production usage.
 
 Part of the source has been copied from the Semtech Packet Forwarder 
 (with permission).
-
-Maintainer: Thomas Telkamp <thomas@telkamp.eu>
 
 Features
 --------
