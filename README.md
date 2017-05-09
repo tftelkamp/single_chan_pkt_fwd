@@ -43,16 +43,19 @@ Dependencies
 
 Connections
 -----------
-SX1272 - Raspberry
 
-3.3V   - 3.3V (header pin #1) 
-GND	   - GND (pin #6)
-MISO   - MISO (pin #21)
-MOSI   - MOSI (pin #19)
-SCK    - CLK (pin #23)
-NSS    - GPIO6 (pin #22)
-DIO0   - GPIO7 (pin #7)
-RST    - GPIO0 (pin #11)
+This lbrary uses wiringpi. **The pin names used in wiringpi are different from those in the official Pi documentation**
+
+SX1272 | Wiring name | Pin number | signal | Direction
+-------|-------------|------------|--------|-----------       
+3.3V   | 3.3V        |  #1        | 3.3 Volt supply voltage form PI |  Pi => SX1272
+GND | GND | #6 | Ground |  Pi => SX1272
+MISO | MISO | #21 | Master In Slave Out | SX1272 => Pi
+MOSI | MOSI | #19 | Master Out Slave In | Pi => SX1272
+SCK | CLK | #23 | Serial Clock for SPI | Pi => SX1272
+NSS | GPIO6 | #22 | Chip enable for SX1272 | Pi => SX1272
+DIO0 | GPIO7 | #7 | signals an available packet | SX1272 => Pi
+RST | GPIO0 | #11 | Chip reset for SX1272 | Pi => SX1272
 
 Configuration
 -------------
