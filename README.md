@@ -4,6 +4,8 @@ Please note this repository is deprecated, and the code is not up-to-date to use
 
 This repository will not be further maintained. Please find another repository if you want to deploy a single channel gateway.
 
+This repository can be considered onwards: https://github.com/futuritymmx/Single-Channel-LoRaWAN-Gateway
+
 
 Single Channel LoRaWAN Gateway
 ==============================
@@ -13,10 +15,10 @@ channel LoRaWAN gateway.
 It has been tested on the Raspberry Pi platform, using a Semtech SX1272
 transceiver (HopeRF RFM92W), and SX1276 (HopeRF RFM95W).
 
-The code is for testing and development purposes only, and is not meant 
-for production usage. 
+The code is for testing and development purposes only, and is not meant
+for production usage.
 
-Part of the source has been copied from the Semtech Packet Forwarder 
+Part of the source has been copied from the Semtech Packet Forwarder
 (with permission).
 
 Features
@@ -35,7 +37,7 @@ Not (yet) supported:
 Dependencies
 ------------
 - SPI needs to be enabled on the Raspberry Pi (use raspi-config)
-- WiringPi: a GPIO access library written in C for the BCM2835 
+- WiringPi: a GPIO access library written in C for the BCM2835
   used in the Raspberry Pi.
   sudo apt-get install wiringpi
   see http://wiringpi.com
@@ -45,7 +47,7 @@ Connections
 -----------
 SX1272 - Raspberry
 
-3.3V   - 3.3V (header pin #1) 
+3.3V   - 3.3V (header pin #1)
 GND	   - GND (pin #6)
 MISO   - MISO (pin #21)
 MOSI   - MOSI (pin #19)
